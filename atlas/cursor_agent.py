@@ -4,7 +4,8 @@ This is the "Voice Cursor" backend: it receives a clean, Claude-formatted prompt
 and runs Cursor non-interactively, returning Cursor's final text output.
 
 Reference: Cursor headless CLI — `cursor-agent -p "<prompt>" --output-format text
---no-stream [--model <id>] [--force]`.
+[--model <id>] [--force]`. (`--no-stream` is off by default; some CLI versions
+don't accept it — enable with ATLAS_CURSOR_NO_STREAM=1 only if yours does.)
 """
 
 from __future__ import annotations
@@ -133,6 +134,19 @@ def run_cursor(prompt: str, cfg: Config, *, force: bool) -> str:
 
     if proc.returncode != 0:
         detail = err or out or f"exit code {proc.returncode}"
-        raise CursorError(f"Cursor agent failed: {detail}")
+        hint = ""
+        lower = (err or "").lower()
+        if "unknown option" in lower or "unknown argument" in lower:
+            hint = (
+                "\nYour Cursor CLI version doesn't recognize one of the flags. "
+                "Update it (curl https://cursor.com/install -fsS | bash), or disable "
+                "the offending option (e.g. ATLAS_CURSOR_NO_STREAM=0)."
+            )
+        elif "model" in lower:
+            hint = (
+                "\nIf you set ATLAS_CURSOR_MODEL, that model id may be invalid for your "
+                "Cursor — leave it blank and pick the model inside the Cursor app."
+            )
+        raise CursorError(f"Cursor agent failed: {detail}{hint}")
 
     return out or err or "(Cursor produced no output.)"

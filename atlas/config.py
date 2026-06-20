@@ -102,7 +102,7 @@ class Config:
     cursor_command: str = "cursor-agent"
     cursor_model: Optional[str] = None
     cursor_force: Optional[bool] = None  # None => decide automatically from intent
-    cursor_no_stream: bool = True
+    cursor_no_stream: bool = False
     cursor_output_format: str = "text"
     cursor_api_key: Optional[str] = None
     workdir: str = "."
@@ -139,7 +139,7 @@ class Config:
             cursor_command=_str("ATLAS_CURSOR_COMMAND", "cursor-agent"),
             cursor_model=_str("ATLAS_CURSOR_MODEL"),
             cursor_force=_opt_bool("ATLAS_CURSOR_FORCE"),
-            cursor_no_stream=_bool("ATLAS_CURSOR_NO_STREAM", True),
+            cursor_no_stream=_bool("ATLAS_CURSOR_NO_STREAM", False),
             cursor_output_format=_str("ATLAS_CURSOR_OUTPUT_FORMAT", "text"),
             cursor_api_key=_str("CURSOR_API_KEY"),
             workdir=_str("ATLAS_WORKDIR", os.getcwd()),
