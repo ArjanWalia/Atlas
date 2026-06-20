@@ -110,12 +110,20 @@ def run_cursor(prompt: str, cfg: Config, *, force: bool) -> str:
     if cfg.cursor_api_key:
         env["CURSOR_API_KEY"] = cfg.cursor_api_key
 
+    workdir = os.path.expanduser(cfg.workdir or ".")
+    if not os.path.isdir(workdir):
+        print(
+            f"[atlas] ⚠ ATLAS_WORKDIR {cfg.workdir!r} is not a directory; "
+            f"running Cursor in {os.getcwd()} instead."
+        )
+        workdir = os.getcwd()
+
     cmd = build_command(executable, prompt, cfg, force=force)
 
     try:
         proc = subprocess.run(
             cmd,
-            cwd=cfg.workdir,
+            cwd=workdir,
             env=env,
             capture_output=True,
             text=True,

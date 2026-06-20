@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -14,29 +15,47 @@ except ImportError:  # python-dotenv is optional; env vars still work without it
 
 # --- small env-parsing helpers ---------------------------------------------
 
-def _str(name: str, default: Optional[str] = None) -> Optional[str]:
+# python-dotenv returns an inline comment as the value when a setting is left blank
+# but keeps its `# comment` (e.g. `ATLAS_WORKDIR=   # ...`). Strip those so a stray
+# comment can never become a path, key, or number.
+_INLINE_COMMENT = re.compile(r"\s+#.*$")
+
+
+def _get(name: str) -> Optional[str]:
+    """Return a cleaned env value, or None if unset / blank / comment-only."""
     v = os.getenv(name)
-    return v if v not in (None, "") else default
+    if v is None:
+        return None
+    s = v.strip()
+    if s.startswith("#"):          # whole value is a comment -> treat as unset
+        return None
+    s = _INLINE_COMMENT.sub("", s).strip()
+    return s or None
+
+
+def _str(name: str, default: Optional[str] = None) -> Optional[str]:
+    v = _get(name)
+    return v if v is not None else default
 
 
 def _bool(name: str, default: bool) -> bool:
-    v = os.getenv(name)
-    if v in (None, ""):
+    v = _get(name)
+    if v is None:
         return default
-    return v.strip().lower() in ("1", "true", "yes", "on", "y")
+    return v.lower() in ("1", "true", "yes", "on", "y")
 
 
 def _opt_bool(name: str) -> Optional[bool]:
     """Tri-state flag: returns None when unset so callers can pick a default."""
-    v = os.getenv(name)
-    if v in (None, ""):
+    v = _get(name)
+    if v is None:
         return None
-    return v.strip().lower() in ("1", "true", "yes", "on", "y")
+    return v.lower() in ("1", "true", "yes", "on", "y")
 
 
 def _int(name: str, default: int) -> int:
-    v = os.getenv(name)
-    if v in (None, ""):
+    v = _get(name)
+    if v is None:
         return default
     try:
         return int(v)
@@ -45,8 +64,8 @@ def _int(name: str, default: int) -> int:
 
 
 def _opt_int(name: str) -> Optional[int]:
-    v = os.getenv(name)
-    if v in (None, ""):
+    v = _get(name)
+    if v is None:
         return None
     try:
         return int(v)
@@ -55,8 +74,8 @@ def _opt_int(name: str) -> Optional[int]:
 
 
 def _float(name: str, default: float) -> float:
-    v = os.getenv(name)
-    if v in (None, ""):
+    v = _get(name)
+    if v is None:
         return default
     try:
         return float(v)
@@ -65,8 +84,8 @@ def _float(name: str, default: float) -> float:
 
 
 def _opt_float(name: str, default: Optional[float]) -> Optional[float]:
-    v = os.getenv(name)
-    if v in (None, ""):
+    v = _get(name)
+    if v is None:
         return default
     try:
         return float(v)
@@ -129,6 +148,12 @@ class Config:
         """Build a Config from the environment (loading `.env` if present)."""
         if load_dotenv is not None:
             load_dotenv()
+        elif os.path.exists(".env"):
+            print(
+                "[atlas] ⚠ python-dotenv isn't installed in this Python, so .env was "
+                "NOT loaded. Install deps with the same interpreter you run Atlas with:\n"
+                "        pip install -r requirements.txt"
+            )
         return cls(
             anthropic_api_key=_str("ANTHROPIC_API_KEY"),
             model=_str("ATLAS_MODEL", "claude-opus-4-8"),
