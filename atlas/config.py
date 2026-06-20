@@ -117,6 +117,10 @@ class Config:
     format_max_tokens: int = 1024
     summary_max_tokens: int = 512
 
+    # Cloud backend (Convex) — optional; history/dir-memory disabled if unset
+    convex_url: Optional[str] = None
+    convex_token: Optional[str] = None
+
     # Cursor ("Voice Cursor") CLI agent
     cursor_command: str = "cursor-agent"
     cursor_model: Optional[str] = None
@@ -161,6 +165,8 @@ class Config:
             effort=_str("ATLAS_EFFORT", "medium"),
             format_max_tokens=_int("ATLAS_FORMAT_MAX_TOKENS", 1024),
             summary_max_tokens=_int("ATLAS_SUMMARY_MAX_TOKENS", 512),
+            convex_url=_str("CONVEX_URL"),
+            convex_token=_str("CONVEX_TOKEN"),
             cursor_command=_str("ATLAS_CURSOR_COMMAND", "cursor-agent"),
             cursor_model=_str("ATLAS_CURSOR_MODEL"),
             cursor_force=_opt_bool("ATLAS_CURSOR_FORCE"),

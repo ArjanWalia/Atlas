@@ -68,6 +68,11 @@ def _check(cfg: Config) -> int:
         ok = False
     print(f"   Speech-to-text backend: {cfg.stt_backend}")
 
+    if cfg.convex_url:
+        print(f"✅ Convex history configured: {cfg.convex_url}")
+    else:
+        print("ℹ  Convex not configured (CONVEX_URL unset) — history & directory memory off")
+
     print("=" * 56)
     print("All checks passed ✅" if ok else "Some checks failed ❌ — see above")
     return 0 if ok else 1
@@ -168,7 +173,10 @@ def main(argv=None) -> int:
     from .app import process_command, run_loop
 
     if args.text is not None:
-        process_command(args.text, cfg, speak=not args.no_speak)
+        from .cloud import CloudStore
+        process_command(
+            args.text, cfg, speak=not args.no_speak, channel="cli", cloud=CloudStore(cfg)
+        )
         return 0
 
     run_loop(cfg)

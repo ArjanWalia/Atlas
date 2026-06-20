@@ -1,19 +1,32 @@
 """The formatting agent: turns a raw voice transcription into a clean Cursor prompt.
 
 Runs on Claude Opus 4.8. Returns a detected `intent` (so Atlas can decide whether
-Cursor is allowed to make edits / run commands) and a polished `refined_prompt`
-that reads as if a thoughtful engineer had typed it.
+Cursor may make edits / run commands), a polished `refined_prompt`, and an optional
+`target_workdir` when the user wants to switch to / build in another project. Recent
+history (from Convex) is passed in as context so references like "my last build" or
+"the other project" resolve.
 """
 
 from __future__ import annotations
 
 import json
 import re
-from typing import Tuple
+from dataclasses import dataclass
+from typing import List, Optional
 
 import anthropic
 
 from .config import Config
+
+
+@dataclass
+class Formatted:
+    """Result of the formatting agent."""
+
+    intent: str
+    refined_prompt: str
+    target_workdir: Optional[str] = None
+
 
 _SYSTEM = """You are the prompt-formatting layer for "Atlas", a voice-controlled \
 coding assistant that drives the Cursor IDE agent.
@@ -38,7 +51,17 @@ Rules:
 - Keep it concise: one short paragraph or a short list. No greeting or preamble.
 - Write in the imperative, the way an engineer phrases a request to a coding agent.
 
-Classify the request into exactly one intent and produce the refined prompt."""
+Context handling:
+- You may be given "Context from earlier sessions" with recent runs and known
+  directories. Use it to resolve references such as "my last build", "the same
+  project", or "the other repo" — fold the resolved meaning into refined_prompt.
+- target_workdir: if the user asks to work in, switch to, open, or build in a specific
+  project or directory, set target_workdir to that path (e.g. "~/projects/foo"). If
+  they reference a previous project, use that project's directory from the context.
+  Otherwise set target_workdir to an empty string.
+
+Classify the request into exactly one intent, choose target_workdir, and produce the
+refined prompt."""
 
 # JSON Schema for structured output (preferred path).
 _SCHEMA = {
@@ -49,8 +72,12 @@ _SCHEMA = {
             "enum": ["plan", "explain", "edit", "terminal", "navigate", "other"],
         },
         "refined_prompt": {"type": "string"},
+        "target_workdir": {
+            "type": "string",
+            "description": "Directory/project to switch to if the user asks; otherwise an empty string.",
+        },
     },
-    "required": ["intent", "refined_prompt"],
+    "required": ["intent", "refined_prompt", "target_workdir"],
     "additionalProperties": False,
 }
 
@@ -69,8 +96,8 @@ def _first_text(resp) -> str:
     return ""
 
 
-def _parse(text: str, fallback_prompt: str) -> Tuple[str, str]:
-    """Parse the model output into (intent, refined_prompt), tolerating fences."""
+def _parse(text: str, fallback_prompt: str) -> Formatted:
+    """Parse the model output into a Formatted result, tolerating code fences."""
     text = (text or "").strip()
     if text.startswith("```"):
         text = text.strip("`")
@@ -84,25 +111,61 @@ def _parse(text: str, fallback_prompt: str) -> Tuple[str, str]:
             if intent not in _VALID_INTENTS:
                 intent = "other"
             refined = (data.get("refined_prompt") or "").strip()
+            target = (data.get("target_workdir") or "").strip() or None
             if refined:
-                return intent, refined
+                return Formatted(intent, refined, target)
         except json.JSONDecodeError:
             pass
 
     # Could not parse structured output — fall back to the raw transcript.
-    return "other", fallback_prompt
+    return Formatted("other", fallback_prompt, None)
 
 
-def format_command(transcript: str, cfg: Config) -> Tuple[str, str]:
-    """Return (intent, refined_prompt) for a raw voice transcription."""
+def _context_block(
+    history: Optional[List[dict]],
+    active_workdir: Optional[str],
+    known_dirs: Optional[List[str]],
+) -> str:
+    lines: List[str] = []
+    if active_workdir:
+        lines.append(f"Active project directory: {active_workdir}")
+    if known_dirs:
+        lines.append("Known directories: " + ", ".join(known_dirs))
+    if history:
+        lines.append("Recent runs (most recent first):")
+        for h in history[:8]:
+            intent = h.get("intent", "?")
+            wd = h.get("workdir", "?")
+            prompt = (h.get("refinedPrompt") or "").replace("\n", " ")[:160]
+            lines.append(f"  - [{intent}] dir={wd} :: {prompt}")
+    return "\n".join(lines)
+
+
+def format_command(
+    transcript: str,
+    cfg: Config,
+    *,
+    history: Optional[List[dict]] = None,
+    active_workdir: Optional[str] = None,
+    known_dirs: Optional[List[str]] = None,
+) -> Formatted:
+    """Return a Formatted result (intent, refined_prompt, target_workdir)."""
     client = _client(cfg)
+
+    context = _context_block(history, active_workdir, known_dirs)
+    user = f"Raw voice transcription:\n\n{transcript}"
+    if context:
+        user = (
+            "Context from earlier sessions (resolve references like 'my last build' or "
+            "'the other project', and use it to choose target_workdir):\n"
+            f"{context}\n\n{user}"
+        )
+
     base = dict(
         model=cfg.model,
         max_tokens=cfg.format_max_tokens,
         system=_SYSTEM,
-        messages=[
-            {"role": "user", "content": f"Raw voice transcription:\n\n{transcript}"}
-        ],
+        messages=[{"role": "user", "content": user}],
     )
     if cfg.format_thinking:
         base["thinking"] = {"type": "adaptive"}
@@ -119,9 +182,10 @@ def format_command(transcript: str, cfg: Config) -> Tuple[str, str]:
         fallback = dict(base)
         fallback["system"] = (
             _SYSTEM
-            + '\n\nRespond with ONLY a JSON object of the form '
+            + "\n\nRespond with ONLY a JSON object of the form "
             + '{"intent": "<one of plan|explain|edit|terminal|navigate|other>", '
-            + '"refined_prompt": "<the cleaned-up instruction>"}.'
+            + '"refined_prompt": "<the cleaned-up instruction>", '
+            + '"target_workdir": "<dir to switch to, or empty string>"}.'
         )
         resp = client.messages.create(**fallback)
         return _parse(_first_text(resp), transcript)

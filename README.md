@@ -210,6 +210,30 @@ ATLAS_WHISPER_MODEL=base.en
 
 ---
 
+## Cloud history & directory memory (Convex)
+
+Optional. With a Convex deployment, Atlas stores **every run** and remembers your
+**active project directory** — so from any session you can say *"build on my last
+project"* or *"switch to ~/projects/foo and add a test"* and it sticks across projects.
+
+```bash
+cd backend
+npm install
+npx convex dev        # creates a deployment, prints a URL like https://xxx.convex.cloud
+```
+
+Put the URL in your repo-root `.env`:
+
+```
+CONVEX_URL=https://your-project-123.convex.cloud
+```
+
+Runs now persist and directory switches are remembered. Without `CONVEX_URL`, Atlas
+works exactly as before (history just disabled). Details: `backend/README.md`.
+
+> Your `ANTHROPIC_API_KEY` and Cursor auth stay on your Mac — Convex only stores
+> commands, results, and the active directory, never your keys.
+
 ## Troubleshooting
 
 - **`No module named atlas`** — you're not in the repo root. `cd` to the folder containing `requirements.txt` and `run.py` (on macOS, `cd Atlas` can land you in the lowercase `atlas/` package), or just use `python run.py`, which works from anywhere.

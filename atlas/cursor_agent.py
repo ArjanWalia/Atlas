@@ -90,11 +90,14 @@ def build_command(executable: str, prompt: str, cfg: Config, *, force: bool) -> 
     return cmd
 
 
-def run_cursor(prompt: str, cfg: Config, *, force: bool) -> str:
+def run_cursor(
+    prompt: str, cfg: Config, *, force: bool, workdir: Optional[str] = None
+) -> str:
     """Run Cursor headlessly and return its final text output.
 
     `force` should be True for edit/terminal requests (so Cursor may act without
-    confirmation) and False for plan/explain/navigation requests.
+    confirmation) and False for plan/explain/navigation requests. `workdir` overrides
+    the configured project directory for this run (used by directory switching).
     """
     executable = resolve_cursor_command(cfg)
     if executable is None:
@@ -110,20 +113,21 @@ def run_cursor(prompt: str, cfg: Config, *, force: bool) -> str:
     if cfg.cursor_api_key:
         env["CURSOR_API_KEY"] = cfg.cursor_api_key
 
-    workdir = os.path.expanduser(cfg.workdir or ".")
-    if not os.path.isdir(workdir):
+    target = workdir if workdir is not None else cfg.workdir
+    resolved_workdir = os.path.expanduser(target or ".")
+    if not os.path.isdir(resolved_workdir):
         print(
-            f"[atlas] ⚠ ATLAS_WORKDIR {cfg.workdir!r} is not a directory; "
+            f"[atlas] ⚠ workdir {target!r} is not a directory; "
             f"running Cursor in {os.getcwd()} instead."
         )
-        workdir = os.getcwd()
+        resolved_workdir = os.getcwd()
 
     cmd = build_command(executable, prompt, cfg, force=force)
 
     try:
         proc = subprocess.run(
             cmd,
-            cwd=workdir,
+            cwd=resolved_workdir,
             env=env,
             capture_output=True,
             text=True,
