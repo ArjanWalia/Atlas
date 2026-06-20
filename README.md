@@ -234,6 +234,34 @@ works exactly as before (history just disabled). Details: `backend/README.md`.
 > Your `ANTHROPIC_API_KEY` and Cursor auth stay on your Mac — Convex only stores
 > commands, results, and the active directory, never your keys.
 
+## iMessage voice remote (Photon)
+
+Send Atlas a **voice memo from your phone over iMessage**: your Mac transcribes it, runs
+the task, **speaks the result aloud**, and **texts the summary back**. Built on a
+Photon-hosted iMessage number via [Spectrum](https://photon.codes) plus the Convex queue.
+
+Three pieces run together:
+
+```bash
+# 1. Convex backend (cloud queue + history)
+cd backend && npx convex dev
+
+# 2. the worker on your Mac — transcribes, runs Cursor, speaks, and reports back
+brew install ffmpeg          # phone memos are m4a/caf; ffmpeg decodes them
+python -m atlas --worker
+
+# 3. the iMessage gateway (its own .env: PROJECT_ID, PROJECT_SECRET, CONVEX_URL, allowlist)
+cd spectrum && npm install && npm run dev
+```
+
+Then text a voice memo to your Photon number. It shares the same brain as the mic —
+including history and directory switching, so *"switch to ~/projects/foo and add a test"*
+works over iMessage too. Only handles in `SPECTRUM_ALLOWED_SENDERS` are accepted. Details
+in `spectrum/README.md`.
+
+> Whisper gives better accuracy on phone memos — set `STT_BACKEND=whisper`
+> (needs `pip install openai-whisper`).
+
 ## Troubleshooting
 
 - **`No module named atlas`** — you're not in the repo root. `cd` to the folder containing `requirements.txt` and `run.py` (on macOS, `cd Atlas` can land you in the lowercase `atlas/` package), or just use `python run.py`, which works from anywhere.

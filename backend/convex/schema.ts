@@ -26,4 +26,17 @@ export default defineSchema({
     knownDirs: v.array(v.string()),
     updatedAt: v.number(),
   }).index("by_key", ["key"]),
+
+  // Inbound commands from remote channels (iMessage). The Spectrum gateway enqueues
+  // them; the Python worker subscribes to the pending ones, runs them locally, and
+  // writes back a summary that the gateway texts to the user.
+  commands: defineTable({
+    createdAt: v.number(),
+    channel: v.string(), // "imessage"
+    status: v.string(), // "pending" | "claimed" | "done" | "error"
+    text: v.optional(v.string()), // caption or text-only command
+    audioStorageId: v.optional(v.id("_storage")), // voice memo, if any
+    summary: v.optional(v.string()), // spoken/replied result
+    updatedAt: v.number(),
+  }).index("by_status", ["status", "createdAt"]),
 });

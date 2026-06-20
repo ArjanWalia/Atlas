@@ -8,6 +8,7 @@ Transcription backend is selectable:
 
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 from .config import Config
@@ -85,30 +86,94 @@ class VoiceListener:
         return self._recognize(audio)
 
     def _recognize(self, audio) -> Optional[str]:
-        sr = self.sr
-        if self.cfg.stt_backend == "whisper":
-            try:
-                text = self.recognizer.recognize_whisper(
-                    audio, model=self.cfg.whisper_model
-                )
-            except sr.UnknownValueError:
-                return None
-            except Exception as exc:  # noqa: BLE001 - whisper/import/runtime issues
-                raise VoiceInputError(
-                    "Whisper transcription failed. Install it with "
-                    "`pip install openai-whisper` (plus ffmpeg), or set STT_BACKEND=google.\n"
-                    f"Details: {exc}"
-                ) from exc
-        else:
-            try:
-                text = self.recognizer.recognize_google(audio)
-            except sr.UnknownValueError:
-                return None
-            except sr.RequestError as exc:
-                raise VoiceInputError(
-                    f"Google speech recognition is unreachable: {exc}\n"
-                    "Check your internet connection or set STT_BACKEND=whisper."
-                ) from exc
+        return _recognize_audio(self.recognizer, self.sr, self.cfg, audio)
 
-        text = (text or "").strip()
-        return text or None
+
+def _recognize_audio(recognizer, sr, cfg: Config, audio) -> Optional[str]:
+    """Backend-agnostic recognition shared by the mic listener and file transcription."""
+    if cfg.stt_backend == "whisper":
+        try:
+            text = recognizer.recognize_whisper(audio, model=cfg.whisper_model)
+        except sr.UnknownValueError:
+            return None
+        except Exception as exc:  # noqa: BLE001 - whisper/import/runtime issues
+            raise VoiceInputError(
+                "Whisper transcription failed. Install it with "
+                "`pip install openai-whisper` (plus ffmpeg), or set STT_BACKEND=google.\n"
+                f"Details: {exc}"
+            ) from exc
+    else:
+        try:
+            text = recognizer.recognize_google(audio)
+        except sr.UnknownValueError:
+            return None
+        except sr.RequestError as exc:
+            raise VoiceInputError(
+                f"Google speech recognition is unreachable: {exc}\n"
+                "Check your internet connection or set STT_BACKEND=whisper."
+            ) from exc
+
+    text = (text or "").strip()
+    return text or None
+
+
+# Formats speech_recognition's AudioFile reads directly; others go through ffmpeg.
+_NATIVE_AUDIO_FORMATS = (".wav", ".aiff", ".aif", ".aifc", ".flac")
+
+
+def _convert_to_wav(path: str) -> str:
+    """Convert any ffmpeg-readable audio file to a temp 16 kHz mono WAV; return its path."""
+    import shutil
+    import subprocess
+    import tempfile
+
+    if shutil.which("ffmpeg") is None:
+        raise VoiceInputError(
+            f"The audio file {os.path.basename(path)!r} needs converting, but ffmpeg "
+            "was not found. Install it with `brew install ffmpeg`."
+        )
+    fd, out_path = tempfile.mkstemp(suffix=".wav")
+    os.close(fd)
+    try:
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", path, "-ar", "16000", "-ac", "1", out_path],
+            check=True,
+            capture_output=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        if os.path.exists(out_path):
+            os.remove(out_path)
+        detail = exc.stderr.decode("utf-8", "ignore")[-400:] if exc.stderr else ""
+        raise VoiceInputError(f"ffmpeg could not convert {path!r}: {detail}") from exc
+    return out_path
+
+
+def transcribe_file(path: str, cfg: Config) -> Optional[str]:
+    """Transcribe an audio file using the configured STT backend.
+
+    WAV/AIFF/FLAC are read directly; other formats (m4a, caf, mp3 — e.g. iMessage voice
+    memos) are converted to WAV with ffmpeg first. Returns None if unintelligible.
+    """
+    sr = _import_sr()
+    recognizer = sr.Recognizer()
+
+    tmp_wav: Optional[str] = None
+    try:
+        src_path = path
+        if os.path.splitext(path)[1].lower() not in _NATIVE_AUDIO_FORMATS:
+            tmp_wav = _convert_to_wav(path)
+            src_path = tmp_wav
+        try:
+            with sr.AudioFile(src_path) as source:
+                audio = recognizer.record(source)
+        except VoiceInputError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise VoiceInputError(f"Could not read audio file {path!r}: {exc}") from exc
+        return _recognize_audio(recognizer, sr, cfg, audio)
+    finally:
+        if tmp_wav and os.path.exists(tmp_wav):
+            try:
+                os.remove(tmp_wav)
+            except OSError:
+                pass

@@ -152,6 +152,11 @@ def main(argv=None) -> int:
         help="Print the summary instead of speaking it (useful for testing).",
     )
     parser.add_argument(
+        "--worker", action="store_true",
+        help="Run the remote-command worker (iMessage voice memos via Convex) "
+             "instead of listening on the microphone.",
+    )
+    parser.add_argument(
         "--version", action="version", version=f"Atlas {__version__}",
     )
     args = parser.parse_args(argv)
@@ -169,6 +174,10 @@ def main(argv=None) -> int:
     except ValueError as exc:
         print(f"❌ {exc}")
         return 1
+
+    if args.worker:
+        from .worker import run as run_worker
+        return run_worker(cfg)
 
     from .app import process_command, run_loop
 
