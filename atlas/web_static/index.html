@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atlas — Voice Cursor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">A</span>
+      <div class="brand-text">
+        <span class="brand-name">Atlas</span>
+        <span class="brand-sub">Voice Cursor</span>
+      </div>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+  </header>
+
+  <main class="stage">
+    <section class="hero">
+      <h1>Talk to Cursor. <span class="grad">Hear it back.</span></h1>
+      <p class="lede">
+        Speak or type a request. Atlas refines it with Claude, runs it through
+        the Cursor agent, then speaks a natural summary in a premium voice.
+      </p>
+    </section>
+
+    <section class="composer" id="composer">
+      <button class="mic" id="mic" title="Hold to speak" aria-label="Speak">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+          <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
+          <line x1="12" y1="19" x2="12" y2="22"/>
+        </svg>
+        <span class="mic-pulse"></span>
+      </button>
+      <div class="field">
+        <textarea
+          id="input"
+          rows="1"
+          placeholder="e.g. Explain what this project does, or add a 30-second timeout to the config…"
+          autocomplete="off"
+        ></textarea>
+      </div>
+      <button class="send" id="send" title="Send (⌘↵)" aria-label="Send">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </section>
+
+    <div class="suggestions" id="suggestions">
+      <button class="chip" data-text="Explain what this project does.">Explain this project</button>
+      <button class="chip" data-text="Plan the architecture for a REST API with users and posts.">Plan an API</button>
+      <button class="chip" data-text="Run the tests and tell me what fails.">Run the tests</button>
+      <button class="chip" data-text="Find any TODO comments in the codebase.">Find TODOs</button>
+    </div>
+
+    <section class="results" id="results" hidden>
+      <div class="result-head">
+        <span class="intent" id="intent">—</span>
+        <button class="ghost" id="play" hidden>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <span>Play voice</span>
+        </button>
+      </div>
+
+      <article class="card summary-card" id="summary-card" hidden>
+        <div class="card-label">Spoken summary</div>
+        <p class="summary-text" id="summary"></p>
+      </article>
+
+      <article class="card" id="refined-card" hidden>
+        <div class="card-label">Refined prompt</div>
+        <p class="refined-text" id="refined"></p>
+      </article>
+
+      <article class="card" id="output-card" hidden>
+        <div class="card-label">Cursor output</div>
+        <pre class="output-text" id="output"></pre>
+      </article>
+
+      <div class="error" id="error" hidden></div>
+    </section>
+
+    <section class="loading" id="loading" hidden>
+      <div class="orbit"><span></span><span></span><span></span></div>
+      <p id="loading-text">Refining your request…</p>
+    </section>
+  </main>
+
+  <footer class="footnote">
+    <span>Local · runs on your machine</span>
+    <span class="sep">•</span>
+    <span id="foot-model">Claude Opus 4.8</span>
+  </footer>
+
+  <audio id="player" hidden></audio>
+  <script src="/app.js"></script>
+</body>
+</html>
