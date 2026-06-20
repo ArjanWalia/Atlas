@@ -29,6 +29,15 @@ def _import_sr():
         ) from exc
 
 
+def list_microphones() -> list:
+    """Return the names of available input devices (index = position in list)."""
+    sr = _import_sr()
+    try:
+        return list(sr.Microphone.list_microphone_names())
+    except Exception as exc:  # noqa: BLE001
+        raise VoiceInputError(f"Could not list microphones: {exc}") from exc
+
+
 class VoiceListener:
     """Captures spoken phrases from the default microphone and transcribes them."""
 
@@ -45,7 +54,7 @@ class VoiceListener:
             self.recognizer.dynamic_energy_threshold = True
 
         try:
-            self.mic = self.sr.Microphone()
+            self.mic = self.sr.Microphone(device_index=cfg.mic_index)
         except Exception as exc:  # noqa: BLE001
             raise VoiceInputError(
                 "Could not open a microphone. Make sure PyAudio/PortAudio is installed "
@@ -56,17 +65,19 @@ class VoiceListener:
         with self.mic as source:
             self.recognizer.adjust_for_ambient_noise(source, duration=0.6)
 
-    def listen_once(self) -> Optional[str]:
+    def listen_once(self, timeout: Optional[float] = None) -> Optional[str]:
         """Block until a phrase is spoken, then return its transcription.
 
-        Returns None if the listener timed out or the audio was unintelligible.
+        `timeout` overrides the configured seconds-to-wait-for-speech-to-start.
+        Returns None if it timed out or the audio was unintelligible.
         """
         sr = self.sr
+        eff_timeout = timeout if timeout is not None else self.cfg.listen_timeout
         with self.mic as source:
             try:
                 audio = self.recognizer.listen(
                     source,
-                    timeout=self.cfg.listen_timeout,
+                    timeout=eff_timeout,
                     phrase_time_limit=self.cfg.phrase_time_limit,
                 )
             except sr.WaitTimeoutError:

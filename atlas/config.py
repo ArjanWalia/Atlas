@@ -112,6 +112,7 @@ class Config:
     stt_backend: str = "google"  # "google" | "whisper"
     whisper_model: str = "base.en"
     energy_threshold: Optional[int] = None
+    mic_index: Optional[int] = None
     pause_threshold: float = 0.8
     phrase_time_limit: Optional[float] = 30.0
     listen_timeout: Optional[float] = None
@@ -146,6 +147,7 @@ class Config:
             stt_backend=(_str("STT_BACKEND", "google") or "google").lower(),
             whisper_model=_str("ATLAS_WHISPER_MODEL", "base.en"),
             energy_threshold=_opt_int("ATLAS_ENERGY_THRESHOLD"),
+            mic_index=_opt_int("ATLAS_MIC_INDEX"),
             pause_threshold=_float("ATLAS_PAUSE_THRESHOLD", 0.8),
             phrase_time_limit=_opt_float("ATLAS_PHRASE_TIME_LIMIT", 30.0),
             listen_timeout=_opt_float("ATLAS_LISTEN_TIMEOUT", None),

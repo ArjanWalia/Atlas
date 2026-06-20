@@ -73,6 +73,58 @@ def _check(cfg: Config) -> int:
     return 0 if ok else 1
 
 
+def _mic_test(cfg: Config) -> int:
+    """List input devices, calibrate, and try one capture to diagnose the mic."""
+    from .voice_input import VoiceInputError, VoiceListener, list_microphones
+
+    print("🎤 Microphone test")
+    print("=" * 56)
+    try:
+        names = list_microphones()
+    except VoiceInputError as exc:
+        print(f"❌ {exc}")
+        return 1
+
+    if not names:
+        print("❌ No input devices found.")
+        return 1
+
+    print("Input devices (set ATLAS_MIC_INDEX to choose one):")
+    for i, name in enumerate(names):
+        marker = "  <- selected" if cfg.mic_index == i else ""
+        print(f"  [{i}] {name}{marker}")
+    if cfg.mic_index is None:
+        print("  (using the system default input device)")
+    print("-" * 56)
+
+    try:
+        listener = VoiceListener(cfg)
+    except VoiceInputError as exc:
+        print(f"❌ {exc}")
+        return 1
+
+    print(f"Calibrated energy threshold: {listener.recognizer.energy_threshold:.0f}")
+    print("\n🎧 Speak a short sentence now (you have about 8 seconds)…")
+    try:
+        text = listener.listen_once(timeout=8)
+    except VoiceInputError as exc:
+        print(f"❌ {exc}")
+        return 1
+
+    if not text:
+        print("\n❌ I didn't capture any speech.")
+        print("   The most common cause on macOS is microphone permission:")
+        print("     System Settings → Privacy & Security → Microphone → enable your")
+        print("     terminal (Terminal, iTerm, or VS Code), then fully quit and reopen it.")
+        print("   Also check the selected input device above (ATLAS_MIC_INDEX), and")
+        print("   lower ATLAS_ENERGY_THRESHOLD if your mic is quiet.")
+        return 1
+
+    print(f"\n✅ Heard: {text}")
+    print("Microphone is working — you're good to run `python run.py`.")
+    return 0
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="atlas",
@@ -81,6 +133,10 @@ def main(argv=None) -> int:
     parser.add_argument(
         "--check", action="store_true",
         help="Check API key, Cursor CLI, microphone and `say`, then exit.",
+    )
+    parser.add_argument(
+        "--mic-test", action="store_true",
+        help="List input devices, calibrate, and try one capture (diagnose the mic).",
     )
     parser.add_argument(
         "--text", metavar="COMMAND",
@@ -99,6 +155,9 @@ def main(argv=None) -> int:
 
     if args.check:
         return _check(cfg)
+
+    if args.mic_test:
+        return _mic_test(cfg)
 
     try:
         cfg.validate()

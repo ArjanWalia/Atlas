@@ -89,8 +89,10 @@ def run_loop(cfg: Config) -> None:
 
     while True:
         try:
+            print("🎧 Listening… (speak now)")
             transcript = listener.listen_once()
             if not transcript:
+                print("   …didn't catch that — try again.")
                 continue
             if transcript.strip().lower().rstrip(".!?") in cfg.exit_phrases:
                 speech.speak(GOODBYE, cfg)
