@@ -1,0 +1,17 @@
+# Atlas — voice-controlled Cursor agent
+# Install with:  pip install -r requirements.txt
+
+# --- Core -------------------------------------------------------------------
+anthropic>=0.69.0          # Claude Opus 4.8 — formatting + summary agents
+python-dotenv>=1.0.0       # loads ANTHROPIC_API_KEY (and overrides) from .env
+
+# --- Voice input (speech-to-text) ------------------------------------------
+SpeechRecognition>=3.10.0  # microphone capture + recognizer
+PyAudio>=0.2.13            # microphone access
+                           #   macOS needs PortAudio first:  brew install portaudio
+
+# --- Optional: fully-offline, private transcription -------------------------
+# Enable with  STT_BACKEND=whisper  in your .env, then install:
+#   pip install openai-whisper
+# (Whisper also needs ffmpeg:  brew install ffmpeg)
+# openai-whisper>=20231117
