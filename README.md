@@ -64,6 +64,12 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
+> **Run from the repo root.** Every command below assumes you're in the folder that
+> contains `requirements.txt` and `run.py` — not the `atlas/` subfolder. macOS is
+> case-insensitive, so `cd Atlas` can drop you inside the lowercase `atlas/` package
+> by mistake; if `requirements.txt` isn't in your current folder, you're one level too
+> deep. (`python run.py ...` sidesteps this — it works from any directory.)
+
 > **macOS microphone dependency:** PyAudio needs PortAudio. If `pip install` fails on PyAudio, run `brew install portaudio` first, then re-run the install.
 
 ### 2. Add your Anthropic key
@@ -76,12 +82,20 @@ cp .env.example .env
 ### 3. Install & authenticate the Cursor CLI ("Voice Cursor")
 
 ```bash
-# Install the Cursor CLI
+# Install the Cursor CLI (drops `cursor-agent` into ~/.local/bin)
 curl https://cursor.com/install -fsS | bash
+
+# Add ~/.local/bin to your PATH so the command is found (zsh shown):
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc
+cursor-agent --version    # confirm it's on PATH
 
 # Authenticate once (opens your browser), or set CURSOR_API_KEY in .env
 cursor-agent login
 ```
+
+> Atlas auto-searches `~/.local/bin` and accepts a binary named either `cursor-agent`
+> or `agent`, so it works even before you fix PATH. If yours is named `agent`, set
+> `ATLAS_CURSOR_COMMAND=agent` in `.env`.
 
 **To make Voice Cursor run on Opus 4.8:** inside the Cursor app, add your Anthropic
 API key and select **Opus 4.8** as the model — the CLI uses that configuration.
@@ -91,23 +105,25 @@ exposes for Opus 4.8.
 ### 4. Verify everything
 
 ```bash
-python -m atlas --check
+python run.py --check      # works from any directory
 ```
 
-You'll get a checklist for your API key, the Cursor CLI, `say`, and the microphone.
+You'll get a checklist for your API key, the Cursor CLI, `say`, and the microphone —
+plus a reminder if you're not running from the repo root.
 
 ---
 
 ## Running it
 
-From your project folder (the code you want Cursor to work on):
+Run `python run.py` from **any** directory, or `python -m atlas` when you're in the
+repo root (the folder with `requirements.txt`):
 
 ```bash
-# Full voice loop — speak your commands
-python -m atlas
-
-# or, equivalently
+# Full voice loop — speak your commands (works from any directory)
 python run.py
+
+# or, if you're in the repo root:
+python -m atlas
 ```
 
 Atlas greets you, then listens. Speak a command, pause, and it goes to work. Say
@@ -196,7 +212,8 @@ ATLAS_WHISPER_MODEL=base.en
 
 ## Troubleshooting
 
-- **`'cursor-agent' was not found`** — install the Cursor CLI (<https://cursor.com/cli>) and make sure it's on your PATH; run `cursor-agent login`.
+- **`No module named atlas`** — you're not in the repo root. `cd` to the folder containing `requirements.txt` and `run.py` (on macOS, `cd Atlas` can land you in the lowercase `atlas/` package), or just use `python run.py`, which works from anywhere.
+- **`cursor-agent: command not found`** — it's installed in `~/.local/bin`, which isn't on your PATH yet. Run `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`, then `cursor-agent --version`. If the binary is named `agent`, set `ATLAS_CURSOR_COMMAND=agent` in `.env`. (Atlas also auto-searches `~/.local/bin` and tries both names.)
 - **PyAudio won't install (macOS)** — `brew install portaudio`, then `pip install -r requirements.txt` again.
 - **It mishears me** — speak a beat after you start; try `STT_BACKEND=whisper` for accuracy, or set a fixed `ATLAS_ENERGY_THRESHOLD`.
 - **No sound** — `say` is macOS-only; on other systems summaries are printed. Check `ATLAS_TTS_VOICE` is a real voice (`say -v ?`).

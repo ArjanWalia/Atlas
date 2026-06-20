@@ -3,34 +3,55 @@
 from __future__ import annotations
 
 import argparse
+import os
+import shutil
 import sys
 
 from . import __version__, speech
 from .config import Config
 
+_PATH_FIX = 'echo \'export PATH="$HOME/.local/bin:$PATH"\' >> ~/.zshrc && source ~/.zshrc'
+
 
 def _check(cfg: Config) -> int:
     """Print an environment / dependency report and return an exit code."""
-    from .cursor_agent import cursor_available
+    from .cursor_agent import _candidate_names, resolve_cursor_command
 
     print(f"Atlas {__version__} — environment check")
-    print("=" * 48)
+    print("=" * 56)
     ok = True
+
+    # Where are we running from? (catches the "No module named atlas" trap.)
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    print(f"   Working dir: {os.getcwd()}")
+    print(f"   Repo root:   {repo_root}")
+    if os.path.realpath(os.getcwd()) != os.path.realpath(repo_root):
+        print(
+            "   ℹ  Run from the repo root (the folder with requirements.txt), "
+            "or use `python run.py` from anywhere."
+        )
+    print("-" * 56)
 
     if cfg.anthropic_api_key:
         print("✅ ANTHROPIC_API_KEY is set")
     else:
-        print("❌ ANTHROPIC_API_KEY is missing (add it to .env)")
+        print("❌ ANTHROPIC_API_KEY is missing (copy .env.example to .env and add it)")
         ok = False
     print(f"   Claude model (agents): {cfg.model}")
 
-    if cursor_available(cfg):
-        print(f"✅ Cursor CLI found: {cfg.cursor_command}")
+    cursor_path = resolve_cursor_command(cfg)
+    if cursor_path:
+        print(f"✅ Cursor CLI found: {cursor_path}")
+        if shutil.which(os.path.basename(cursor_path)) is None:
+            print("   ⚠  It isn't on your PATH yet — add it so it's always found:")
+            print(f"        {_PATH_FIX}")
     else:
+        searched = ", ".join(_candidate_names(cfg))
         print(
-            f"❌ Cursor CLI '{cfg.cursor_command}' not on PATH "
-            "— install from https://cursor.com/cli"
+            f"❌ Cursor CLI not found (looked for {searched} on PATH and ~/.local/bin)."
         )
+        print("   Install it from https://cursor.com/cli, then add it to PATH:")
+        print(f"        {_PATH_FIX}")
         ok = False
     print(f"   Cursor model: {cfg.cursor_model or '(Cursor default — set Opus 4.8 in Cursor)'}")
 
@@ -47,7 +68,7 @@ def _check(cfg: Config) -> int:
         ok = False
     print(f"   Speech-to-text backend: {cfg.stt_backend}")
 
-    print("=" * 48)
+    print("=" * 56)
     print("All checks passed ✅" if ok else "Some checks failed ❌ — see above")
     return 0 if ok else 1
 
